@@ -1,101 +1,91 @@
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
+#else
+#ifdef ESP32
+#include <WiFi.h>
+#endif // ESP32
+#endif // ESP8266
 
-// Import required libraries
-#include "WiFi.h"
-#include "ESPAsyncWebServer.h"
-#include "SPIFFS.h"
-#include "DHT20.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/task.h"
+#include <Arduino_MQTT_Client.h>
+#include <ThingsBoard.h>
 
-// Replace with your network credentials
-// const char* ssid = PROJECT_WIFI_SSID;
-// const char* password = PROJECT_WIFI_PASSWORD;
+#define ENCRYPTED false
 
-const char* ssid = PROJECT_WIFI_SSID;
-const char* password = PROJECT_WIFI_PASSWORD;
+constexpr char WIFI_SSID[] = "RD-SEAI_2.4G";
+constexpr char WIFI_PASSWORD[] = "YOUR_WIFI_PASSWORD";
+constexpr char TOKEN[] = "wipfx1rt8orrlpte60p2";
+constexpr char THINGSBOARD_SERVER[] = "app.coreiot.io";
 
+#if ENCRYPTED
+constexpr uint16_t THINGSBOARD_PORT = 8883U;
+#else
+constexpr uint16_t THINGSBOARD_PORT = 1883U;
+#endif
 
-// Set LED GPIO
-const int ledPin = 13;
-// Stores LED state
-String ledState;
+constexpr uint16_t MAX_MESSAGE_SEND_SIZE = 256U;
+constexpr uint16_t MAX_MESSAGE_RECEIVE_SIZE = 256U;
+constexpr uint32_t SERIAL_DEBUG_BAUD = 115200U;
 
-// Create AsyncWebServer object on port 80
-AsyncWebServer server(80);
+#if ENCRYPTED
+WiFiClientSecure espClient;
+#else
+WiFiClient espClient;
+#endif
 
-// Replaces placeholder with LED state value
-String processor(const String& var){
-  Serial.println(var);
-  if(var == "STATE"){
-    if(digitalRead(ledPin)){
-      ledState = "ON";
-    }
-    else{
-      ledState = "OFF";
-    }
-    Serial.print(ledState);
-    return ledState;
-  }
-  return String();
-}
+Arduino_MQTT_Client mqttClient(espClient);
+ThingsBoard tb(mqttClient, MAX_MESSAGE_RECEIVE_SIZE, MAX_MESSAGE_SEND_SIZE);
 
-// Task to handle Wi-Fi connection
-void wifiTask(void *pvParameters) {
-  Serial.begin(115200);
-  WiFi.begin(ssid, password);
+void InitWiFi() {
+  Serial.println("Connecting to AP ...");
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   while (WiFi.status() != WL_CONNECTED) {
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-    Serial.println("Connecting to WiFi..");
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("Connected to AP");
+}
+
+bool reconnect() {
+  if (WiFi.status() == WL_CONNECTED) {
+    return true;
+  }
+  InitWiFi();
+  return true;
+}
+
+void setup() {
+  Serial.begin(SERIAL_DEBUG_BAUD);
+  delay(1000);
+  InitWiFi();
+}
+
+void loop() {
+  delay(1000);
+
+  if (!reconnect()) {
+    return;
   }
 
-  // Print ESP32 Local IP Address
-  Serial.println(WiFi.localIP());
-  vTaskDelete(NULL);  // Delete the task when done
-}
-
-// Task to handle server
-void serverTask(void *pvParameters) {
-  // Initialize SPIFFS
-  if(!SPIFFS.begin(true)){
-    Serial.println("An Error has occurred while mounting SPIFFS");
-    vTaskDelete(NULL);  // Delete the task if SPIFFS initialization fails
+  if (!tb.connected()) {
+    Serial.printf("Connecting to: (%s) with token (%s)\n", THINGSBOARD_SERVER, TOKEN);
+    if (!tb.connect(THINGSBOARD_SERVER, TOKEN, THINGSBOARD_PORT)) {
+      Serial.println("Failed to connect");
+      return;
+    }
   }
 
-  // Route for root / web page
-  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  
-  // Route to load style.css file
-  server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/style.css", "text/css");
-  });
+  // Create a JSON document
+  StaticJsonDocument<256> doc;
+  doc["temperature"] = random(20, 30);  // Example: Simulating a temperature reading
 
-  // Route to set GPIO to HIGH
-  server.on("/on", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, HIGH);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
-  
-  // Route to set GPIO to LOW
-  server.on("/off", HTTP_GET, [](AsyncWebServerRequest *request){
-    digitalWrite(ledPin, LOW);    
-    request->send(SPIFFS, "/index.html", String(), false, processor);
-  });
+  // Serialize the JSON document
+  char buffer[256];
+  size_t len = serializeJson(doc, buffer, sizeof(buffer));
 
-  // Start server
-  server.begin();
-  vTaskDelete(NULL);  // Delete the task when done
-}
+  // Send telemetry data
+  if (!tb.sendTelemetryJson(doc, len)) {
+    Serial.println("Failed to send telemetry");
+  }
 
-void setup(){
-  pinMode(ledPin, OUTPUT);
-
-  // Create tasks for Wi-Fi and server
-  xTaskCreate(wifiTask, "WiFiTask", 4096, NULL, 1, NULL);
-  xTaskCreate(serverTask, "ServerTask", 8192, NULL, 1, NULL);
-}
- 
-void loop(){
-  // Nothing to do here, FreeRTOS tasks handle the work
+  tb.loop();
 }
