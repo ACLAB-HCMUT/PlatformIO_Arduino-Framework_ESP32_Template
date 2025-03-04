@@ -11,8 +11,8 @@
 
 #define ENCRYPTED false
 
-constexpr char WIFI_SSID[] = "RD-SEAI_2.4G";
-constexpr char WIFI_PASSWORD[] = "YOUR_WIFI_PASSWORD";
+constexpr char WIFI_SSID[] = "ACLAB-IOT";
+constexpr char WIFI_PASSWORD[] = "12345678";
 constexpr char TOKEN[] = "wipfx1rt8orrlpte60p2";
 constexpr char THINGSBOARD_SERVER[] = "app.coreiot.io";
 
