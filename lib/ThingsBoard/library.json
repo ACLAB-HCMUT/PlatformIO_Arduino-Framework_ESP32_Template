@@ -1,0 +1,34 @@
+{
+    "name": "ThingsBoard",
+    "keywords": "mqtt, iot, arduino, esp8266, embedded, esp32, arduino-library, mcu, thingsboard, m5stack-library, arduino-nano-rp2040-connect, arduino-nano-rp2040, raspberry-pi-pico-w",
+    "description": "Arduino library to connect with ThingsBoard IoT Platform over MQTT or HTTP/S",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/thingsboard/thingsboard-client-sdk"
+    },
+    "dependencies": 
+    [
+        {
+            "owner": "bblanchon",
+            "name": "ArduinoJson",
+            "version": "^6.21.5"
+        },
+        {
+            "owner": "thingsboard",
+            "name": "TBPubSubClient",
+            "version": "^2.11.0",
+            "frameworks": ["arduino"]
+        },
+        {
+            "owner": "arduino-libraries",
+            "name": "ArduinoHttpClient",
+            "version": "^0.6.1",
+            "frameworks": ["arduino"]
+        },
+        "Update"
+    ],
+    "version": "0.15.0",
+    "examples": "examples/*/*.ino",
+    "frameworks": "*",
+    "license": "MIT"
+}
